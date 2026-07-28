@@ -1,6 +1,10 @@
 # LieControllability.jl
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A first-pass Julia port of [`autoLie`](https://github.com/virati/autoLie) focused on the core Lie derivative / Lie bracket workflow and a few representative control-affine dynamics.
+
+> **Attribution** — The original `autoLie` Python library was written by [Vineet Tiruvadi](https://github.com/virati) and is released under the MIT License.  This Julia port inherits that license; see [LICENSE](LICENSE) for details.
 
 ---
 

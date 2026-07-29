@@ -70,6 +70,7 @@ end
 
 include("dynamics.jl")
 include("plotting.jl")
+include("symbolic.jl")
 
 end # module
 

@@ -73,6 +73,8 @@ The dual question is *observability*: can the state be inferred from a measureme
 - Representative 3D dynamics from the Python codebase (`f1`, `f4`, `f8`, `f9`, `g1`, `h1`, `f_main`, etc.)
 - A simplified DBS-style control system example
 - Basic plotting helpers that save PNG figures from 2D slices of the 3D fields
+- **`Graphs.jl` / `GraphMakie.jl`** network visualisation for richer DBS layout plots (see `examples/dbs_network_graphmakie.jl`)
+- **`Symbolics.jl` symbolic codepath** — `sym_L_d`, `sym_L_bracket`, `sym_controllability_matrix`, and `sym_to_numeric` for exact closed-form Lie derivatives, brackets, and generated numeric functions (see `src/symbolic.jl`)
 
 ## What is intentionally *not* included yet
 
@@ -93,8 +95,11 @@ This first pass keeps the original design limitations intact:
 # generate basic Lie derivative figures
 julia --project=. examples/basic.jl
 
-# generate DBS network figures
+# generate DBS network figures (original Plots.jl version)
 julia --project=. examples/dbs_network_ctrl.jl
+
+# generate richer DBS network figure (Graphs.jl + GraphMakie.jl)
+julia --project=. examples/dbs_network_graphmakie.jl
 
 # run tests
 julia --project=. -e 'using Pkg; Pkg.test()'
@@ -144,14 +149,20 @@ Randomly drawn assignment of the 10 network elements to 5 brain regions, used in
 
 ---
 
+### Richer DBS network visualisation (Graphs.jl / GraphMakie.jl)
+
+A single composite figure produced by `examples/dbs_network_graphmakie.jl`.  The top panel is a `graphplot!` of the 10-node cycle graph: **red** = control node (actuated by `g_mono`), **gold** = readout node (observed by `h_single`), **blue** = passive nodes.  The middle panel shows the full cycle Laplacian as a red-blue diverging heatmap, and the bottom panel repeats the element-to-region bar chart — all rendered with CairoMakie for crisp vector-quality output.
+
+![GraphMakie DBS network](figures/dbs_network_graphmakie.png)
+
+---
+
 ## Notes on design limitations preserved from `autoLie`
 
 The Python repository is intentionally exploratory and numerically direct.  This port keeps that spirit by using explicit function arguments, a small catalog of sample fields, and grid-slice plotting rather than a new abstraction-heavy framework.
 
 ## Potential areas for improvement
 
-- add `Graphs.jl` / `GraphMakie.jl` support for richer network visualisation
-- add symbolic differentiation or generated-code paths for large models
 - implement faster field evaluation on dense grids (e.g. `Tullio.jl`)
 - expand the control-affine example set beyond the original demo fields
 - add a richer trajectory simulator and parameterised DBS scenarios

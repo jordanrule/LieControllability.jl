@@ -5,10 +5,12 @@ using ForwardDiff
 using Random
 
 export Operable, operable, L_d, L_dot, L_bracket,
-       meshgrid3, slice_field, slice_scalar, plot_field_slice, plot_scalar_slice,
+       meshgrid3, slice_field, slice_scalar, slice_field_dense, slice_scalar_dense,
+       plot_field_slice, plot_scalar_slice,
        f1, h1, f4, f8, f9, g1, f_main,
        f_trivial, g_mono, Xi_1, h_single, h_single_vect,
        ControlSystem, control_system, disease_control, disease_measure, full_control,
+       DBSScenario, dbs_scenario, simulate_trajectory,
        u_step, cycle_laplacian
 
 struct Operable{F}

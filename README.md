@@ -73,14 +73,15 @@ The dual question is *observability*: can the state be inferred from a measureme
 - Representative 3D dynamics from the Python codebase (`f1`, `f4`, `f8`, `f9`, `g1`, `h1`, `f_main`, etc.)
 - A simplified DBS-style control system example
 - Basic plotting helpers that save PNG figures from 2D slices of the 3D fields
+- Dense-grid field evaluation via `Tullio.jl` (`slice_field_dense`, `slice_scalar_dense`)
 - **`Graphs.jl` / `GraphMakie.jl`** network visualisation for richer DBS layout plots (see `examples/dbs_network_graphmakie.jl`)
 - **`Symbolics.jl` symbolic codepath** — `sym_L_d`, `sym_L_bracket`, `sym_controllability_matrix`, and `sym_to_numeric` for exact closed-form Lie derivatives, brackets, and generated numeric functions (see `src/symbolic.jl`)
+- Richer trajectory simulation (`simulate_trajectory`) and parameterized DBS presets (`dbs_scenario`, `DBSScenario`)
 
 ## What is intentionally *not* included yet
 
 This first pass keeps the original design limitations intact:
 
-- no symbolic layer
 - no GUI frontend
 - no Mayavi dependency or full 3D interactive plotting
 - no broad graph/network abstraction layer
@@ -100,6 +101,9 @@ julia --project=. examples/dbs_network_ctrl.jl
 
 # generate richer DBS network figure (Graphs.jl + GraphMakie.jl)
 julia --project=. examples/dbs_network_graphmakie.jl
+
+# benchmark dense-grid backends + compare parameterized DBS trajectories
+julia --project=. examples/improvements_demo.jl
 
 # run tests
 julia --project=. -e 'using Pkg; Pkg.test()'
@@ -157,14 +161,21 @@ A single composite figure produced by `examples/dbs_network_graphmakie.jl`.  The
 
 ---
 
+### Dense-grid acceleration + parameterized scenario trajectories
+
+The top panel compares dense field-slice evaluation runtime on a `181 x 181` grid using the legacy nested-loop backend and the new `Tullio.jl` backend.  The bottom panel shows readout trajectories from three parameterized DBS presets (`:baseline`, `:early_drive`, `:high_gain`) integrated with the new `simulate_trajectory` API.
+
+![Improvements demo](figures/improvements_dense_and_scenarios.png)
+
+---
+
 ## Notes on design limitations preserved from `autoLie`
 
 The Python repository is intentionally exploratory and numerically direct.  This port keeps that spirit by using explicit function arguments, a small catalog of sample fields, and grid-slice plotting rather than a new abstraction-heavy framework.
 
 ## Potential areas for improvement
 
-- implement faster field evaluation on dense grids (e.g. `Tullio.jl`)
 - expand the control-affine example set beyond the original demo fields
-- add a richer trajectory simulator and parameterised DBS scenarios
 - migrate the 3D figures to a modern interactive backend such as `Makie.jl`
 - add a proper controllability rank test (Chow's theorem) over random sample points
+- tighten the benchmark methodology in `examples/improvements_demo.jl` (e.g., warm-up pass + larger grid sweep) for more publication-style reporting

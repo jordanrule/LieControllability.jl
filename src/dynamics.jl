@@ -102,34 +102,67 @@ end
 
 function h_single_vect(x, P)
     measure_vect = zeros(eltype(x), length(x))
-    measure_vect[4] = sin(x[4])
+    readout_idx = _readout_index(P, length(x))
+    measure_vect[readout_idx] = sin(x[readout_idx])
     return measure_vect
 end
 
 function h_single(x, P)
     measure_vect = zeros(eltype(x), length(x))
-    measure_vect[4] = 1.0
+    readout_idx = _readout_index(P, length(x))
+    measure_vect[readout_idx] = 1.0
     return dot(measure_vect, sin.(x))
 end
 
 function g_mono(x, P)
     test = zeros(eltype(x), length(x), length(x))
     resid = zeros(eltype(x), length(x))
-    test[8, 8] = 1.0
+    control_idx = _control_index(P, length(x))
+    test[control_idx, control_idx] = 1.0
     ret_vec = test * x .+ resid
     return ret_vec
 end
 
 function f_trivial(x, P)
-    filt_x = zeros(eltype(x), length(x), length(x))
-    filt_x[2, 2] = 1.0
-    filt_x[4, 4] = 1.0
-    filt_x[8, 10] = 1.0
-    return filt_x' * x
+    if P isa AbstractMatrix
+        filt_x = zeros(eltype(x), length(x), length(x))
+        if length(x) >= 2
+            filt_x[2, 2] = 1.0
+        end
+        if length(x) >= 4
+            filt_x[4, 4] = 1.0
+        end
+        if length(x) >= 10
+            filt_x[8, 10] = 1.0
+        end
+        return filt_x' * x
+    end
+    L = hasproperty(P, :L) ? P.L : Matrix{Float64}(I, length(x), length(x))
+    drift_gain = hasproperty(P, :drift_gain) ? P.drift_gain : 0.08
+    nonlinear_gain = hasproperty(P, :nonlinear_gain) ? P.nonlinear_gain : 0.0
+    return -drift_gain .* (L * x) .+ nonlinear_gain .* tanh.(x)
 end
 
 function u_step(t, P)
-    return t > 5 ? 1.0 : 0.0
+    drive_onset = hasproperty(P, :drive_onset) ? P.drive_onset : 5.0
+    drive_amplitude = hasproperty(P, :drive_amplitude) ? P.drive_amplitude : 1.0
+    return t > drive_onset ? drive_amplitude : 0.0
+end
+
+@inline _bounded_index(idx::Int, n::Int) = clamp(idx, 1, n)
+
+function _control_index(P, n::Int)
+    if hasproperty(P, :control_node)
+        return _bounded_index(Int(getproperty(P, :control_node)), n)
+    end
+    return _bounded_index(8, n)
+end
+
+function _readout_index(P, n::Int)
+    if hasproperty(P, :readout_node)
+        return _bounded_index(Int(getproperty(P, :readout_node)), n)
+    end
+    return _bounded_index(4, n)
 end
 
 function cycle_laplacian(n::Int)
@@ -158,7 +191,7 @@ mutable struct ControlSystem
     D::Matrix{Float64}
     e_to_r::Vector{Int}
     Xi::Function
-    P::Matrix{Float64}
+    P::Any
     x_state::Matrix{Float64}
     n_regions::Int
     n_symp::Int
@@ -168,7 +201,11 @@ mutable struct ControlSystem
     full_sets::Vector{Vector{Float64}}
 end
 
-function ControlSystem(; n_elements::Int=10, seed::Int=1)
+function ControlSystem(; n_elements::Int=10, seed::Int=1,
+    control_node::Int=8, readout_node::Int=4,
+    drift_gain::Float64=0.08, nonlinear_gain::Float64=0.01,
+    drive_onset::Float64=5.0, drive_amplitude::Float64=1.0,
+    use_parameterized::Bool=false)
     n_regions = Int(floor(n_elements / 2))
     L = cycle_laplacian(n_elements)
     G = cycle_adjacency(n_elements)
@@ -176,7 +213,17 @@ function ControlSystem(; n_elements::Int=10, seed::Int=1)
     rng = MersenneTwister(seed)
     e_to_r = rand(rng, 1:n_regions, n_elements)
     Xi = Xi_1
-    P = L
+    control_node = _bounded_index(control_node, n_elements)
+    readout_node = _bounded_index(readout_node, n_elements)
+    P = use_parameterized ? (
+        L=L,
+        control_node=control_node,
+        readout_node=readout_node,
+        drift_gain=drift_gain,
+        nonlinear_gain=nonlinear_gain,
+        drive_onset=drive_onset,
+        drive_amplitude=drive_amplitude,
+    ) : L
     x_state = rand(rng, 1000, 1)
     n_symp = 2
     return ControlSystem(
@@ -200,7 +247,102 @@ function ControlSystem(; n_elements::Int=10, seed::Int=1)
     )
 end
 
-control_system() = ControlSystem()
+control_system(; kwargs...) = ControlSystem(; kwargs...)
+
+Base.@kwdef struct DBSScenario
+    name::Symbol = :baseline
+    n_elements::Int = 10
+    seed::Int = 1
+    control_node::Int = 8
+    readout_node::Int = 4
+    drift_gain::Float64 = 0.08
+    nonlinear_gain::Float64 = 0.01
+    drive_onset::Float64 = 5.0
+    drive_amplitude::Float64 = 1.0
+    tspan::Tuple{Float64, Float64} = (0.0, 20.0)
+    dt::Float64 = 0.02
+end
+
+function dbs_scenario(name::Symbol=:baseline; kwargs...)
+    if name == :baseline
+        return DBSScenario(; name=name, kwargs...)
+    elseif name == :early_drive
+        return DBSScenario(; name=name, drive_onset=2.5, kwargs...)
+    elseif name == :high_gain
+        return DBSScenario(; name=name, drift_gain=0.12, nonlinear_gain=0.03, drive_amplitude=1.4, kwargs...)
+    end
+    throw(ArgumentError("Unknown DBS scenario $(name). Supported presets: :baseline, :early_drive, :high_gain"))
+end
+
+function control_system(s::DBSScenario)
+    return ControlSystem(
+        n_elements=s.n_elements,
+        seed=s.seed,
+        control_node=s.control_node,
+        readout_node=s.readout_node,
+        drift_gain=s.drift_gain,
+        nonlinear_gain=s.nonlinear_gain,
+        drive_onset=s.drive_onset,
+        drive_amplitude=s.drive_amplitude,
+        use_parameterized=true,
+    )
+end
+
+function _control_effect(g, u)
+    if u isa Number
+        return g .* u
+    elseif g isa AbstractMatrix
+        return g * u
+    elseif g isa AbstractVector && u isa AbstractVector && length(g) == length(u)
+        return g .* u
+    end
+    throw(ArgumentError("Unsupported control/vector-field dimensions for control application."))
+end
+
+_system_rhs(cs::ControlSystem, x, t, u) = cs.f_drift(x, cs.P) .+ _control_effect(cs.g_ctrl(x, cs.P), u)
+
+function simulate_trajectory(cs::ControlSystem, x0;
+    tspan::Tuple{Float64, Float64}=(0.0, 20.0),
+    dt::Float64=0.01,
+    method::Symbol=:rk4,
+    control=nothing,
+    process_noise::Float64=0.0,
+    rng=Random.default_rng())
+    dt <= 0 && throw(ArgumentError("dt must be > 0"))
+    t0, tf = tspan
+    tf <= t0 && throw(ArgumentError("tspan must satisfy tf > t0"))
+    n_steps = Int(floor((tf - t0) / dt)) + 1
+    t = collect(range(t0, step=dt, length=n_steps))
+    x = Float64.(collect(x0))
+    X = zeros(Float64, length(x), n_steps)
+    U = zeros(Float64, n_steps)
+    X[:, 1] .= x
+    control_fn = control === nothing ? ((tt, xx, ccs) -> ccs.u(tt, ccs.P)) : control
+    for k in 1:(n_steps - 1)
+        tk = t[k]
+        uk = control_fn(tk, x, cs)
+        U[k] = uk isa Number ? Float64(uk) : norm(uk)
+        if method == :euler
+            x_new = x .+ dt .* _system_rhs(cs, x, tk, uk)
+        elseif method == :rk4
+            # Standard RK4 step for non-stiff control-affine dynamics.
+            k1 = _system_rhs(cs, x, tk, uk)
+            k2 = _system_rhs(cs, x .+ 0.5 .* dt .* k1, tk + 0.5 * dt, uk)
+            k3 = _system_rhs(cs, x .+ 0.5 .* dt .* k2, tk + 0.5 * dt, uk)
+            k4 = _system_rhs(cs, x .+ dt .* k3, tk + dt, uk)
+            x_new = x .+ (dt / 6.0) .* (k1 .+ 2.0 .* k2 .+ 2.0 .* k3 .+ k4)
+        else
+            throw(ArgumentError("Unsupported method $(method). Use :rk4 or :euler."))
+        end
+        if process_noise > 0
+            x_new .+= process_noise * sqrt(dt) .* randn(rng, length(x))
+        end
+        x = x_new
+        X[:, k + 1] .= x
+    end
+    U[end] = U[max(1, end - 1)]
+    return (t=t, x=X, u=U, method=method, dt=dt)
+end
 
 function disease_control(cs::ControlSystem; rng=Random.default_rng())
     rand_checks = rand(rng, cs.n_elements, cs.n_elements) .* 20 .- 10

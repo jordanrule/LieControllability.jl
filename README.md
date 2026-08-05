@@ -74,6 +74,7 @@ The dual question is *observability*: can the state be inferred from a measureme
 - A simplified DBS-style control system example
 - Basic plotting helpers that save PNG figures from 2D slices of the 3D fields
 - Dense-grid field evaluation via `Tullio.jl` (`slice_field_dense`, `slice_scalar_dense`)
+- Numeric controllability rank checks via Chow's theorem (`controllability_distribution`, `controllability_rank`, `chow_rank_test`) over random sample points
 - **`Graphs.jl` / `GraphMakie.jl`** network visualisation for richer DBS layout plots (see `examples/dbs_network_graphmakie.jl`)
 - **`Symbolics.jl` symbolic codepath** — `sym_L_d`, `sym_L_bracket`, `sym_controllability_matrix`, and `sym_to_numeric` for exact closed-form Lie derivatives, brackets, and generated numeric functions (see `src/symbolic.jl`)
 - Richer trajectory simulation (`simulate_trajectory`) and parameterized DBS presets (`dbs_scenario`, `DBSScenario`)
@@ -177,5 +178,5 @@ The Python repository is intentionally exploratory and numerically direct.  This
 
 - expand the control-affine example set beyond the original demo fields
 - migrate the 3D figures to a modern interactive backend such as `Makie.jl`
-- add a proper controllability rank test (Chow's theorem) over random sample points
-- tighten the benchmark methodology in `examples/improvements_demo.jl` (e.g., warm-up pass + larger grid sweep) for more publication-style reporting
+- add symbolic-to-numeric cross-check tests that validate symbolic and autodiff Lie brackets against each other
+- explore `BenchmarkTools.jl` integration for formal benchmark trials and confidence intervals

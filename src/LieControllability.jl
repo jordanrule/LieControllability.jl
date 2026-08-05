@@ -11,7 +11,8 @@ export Operable, operable, L_d, L_dot, L_bracket,
        f_trivial, g_mono, Xi_1, h_single, h_single_vect,
        ControlSystem, control_system, disease_control, disease_measure, full_control,
        DBSScenario, dbs_scenario, simulate_trajectory,
-       u_step, cycle_laplacian
+       u_step, cycle_laplacian,
+       lie_bracket_field, controllability_distribution, controllability_rank, chow_rank_test
 
 struct Operable{F}
     f::F
@@ -62,8 +63,14 @@ function L_dot(h::Function, f::Function, order::Integer=1)
 end
 
 function L_bracket(f::Function, g::Function, x0=nothing, args...)
-    cf = (x, a...) -> ForwardDiff.jacobian(y -> f(y, a...), Float64.(collect(x))) * g(x, a...)
-    cb = (x, a...) -> ForwardDiff.jacobian(y -> g(y, a...), Float64.(collect(x))) * f(x, a...)
+    cf = (x, a...) -> begin
+        xvec = collect(float.(x))
+        ForwardDiff.jacobian(y -> f(y, a...), xvec) * g(xvec, a...)
+    end
+    cb = (x, a...) -> begin
+        xvec = collect(float.(x))
+        ForwardDiff.jacobian(y -> g(y, a...), xvec) * f(xvec, a...)
+    end
     if x0 === nothing
         return cf, cb
     end
@@ -72,6 +79,7 @@ end
 
 include("dynamics.jl")
 include("plotting.jl")
+include("controllability.jl")
 include("symbolic.jl")
 
 end # module
